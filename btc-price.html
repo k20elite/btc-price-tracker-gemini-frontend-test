@@ -1,0 +1,843 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BTC Price Tracker - Binance</title>
+  <style>
+    :root {
+      --bg-color: #07090e;
+      --card-bg: rgba(255, 255, 255, 0.08);
+      --card-border: rgba(255, 255, 255, 0.18);
+      --text-main: #f1f5f9;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+      --accent-green: #10b981;
+      --accent-green-bg: rgba(16, 185, 129, 0.18);
+      --accent-red: #ef4444;
+      --accent-red-bg: rgba(239, 68, 68, 0.18);
+      --accent-neutral: #94a3b8;
+      --accent-neutral-bg: rgba(148, 163, 184, 0.12);
+      --primary-btn: #f59e0b;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, 'SF Pro Display', Inter, sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+      overflow-x: hidden;
+      position: relative;
+    }
+
+    /* 1. Background Animation Blobs */
+    .bg {
+      position: fixed;
+      z-index: -1;
+      inset: 0;
+      overflow: hidden;
+      pointer-events: none;
+      background-color: var(--bg-color);
+    }
+
+    .blob {
+      position: absolute;
+      will-change: transform;
+      pointer-events: none;
+    }
+
+    .blob::before {
+      content: '';
+      display: block;
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      filter: blur(80px);
+      -webkit-filter: blur(80px);
+      will-change: transform;
+    }
+
+    .blob-1 {
+      top: -10%;
+      left: -10%;
+      width: 380px;
+      height: 380px;
+      animation: floatBlob1 22s ease-in-out infinite alternate;
+    }
+    .blob-1::before {
+      background: #f59e0b;
+      opacity: 0.45;
+    }
+
+    .blob-2 {
+      top: 45%;
+      right: -15%;
+      width: 420px;
+      height: 420px;
+      animation: floatBlob2 28s ease-in-out infinite alternate 2.5s;
+    }
+    .blob-2::before {
+      background: #a855f7;
+      opacity: 0.38;
+    }
+
+    .blob-3 {
+      bottom: -15%;
+      left: 10%;
+      width: 390px;
+      height: 390px;
+      animation: floatBlob3 25s ease-in-out infinite alternate 5s;
+    }
+    .blob-3::before {
+      background: #06b6d4;
+      opacity: 0.35;
+    }
+
+    .blob-4 {
+      top: 22%;
+      left: 32%;
+      width: 350px;
+      height: 350px;
+      animation: floatBlob4 30s ease-in-out infinite alternate 7.5s;
+    }
+    .blob-4::before {
+      background: #ec4899;
+      opacity: 0.32;
+    }
+
+    @keyframes floatBlob1 {
+      0% {
+        transform: translate3d(0, 0, 0) scale(1);
+      }
+      50% {
+        transform: translate3d(70px, 90px, 0) scale(1.15);
+      }
+      100% {
+        transform: translate3d(-40px, 60px, 0) scale(0.92);
+      }
+    }
+
+    @keyframes floatBlob2 {
+      0% {
+        transform: translate3d(0, 0, 0) scale(1);
+      }
+      50% {
+        transform: translate3d(-90px, -70px, 0) scale(1.18);
+      }
+      100% {
+        transform: translate3d(-40px, 80px, 0) scale(0.95);
+      }
+    }
+
+    @keyframes floatBlob3 {
+      0% {
+        transform: translate3d(0, 0, 0) scale(0.94);
+      }
+      50% {
+        transform: translate3d(80px, -80px, 0) scale(1.14);
+      }
+      100% {
+        transform: translate3d(-60px, -40px, 0) scale(1.04);
+      }
+    }
+
+    @keyframes floatBlob4 {
+      0% {
+        transform: translate3d(0, 0, 0) scale(1.06);
+      }
+      50% {
+        transform: translate3d(-70px, 100px, 0) scale(0.9);
+      }
+      100% {
+        transform: translate3d(80px, -50px, 0) scale(1.16);
+      }
+    }
+
+    .container {
+      width: 100%;
+      max-width: 440px;
+      margin: 0 auto;
+      position: relative;
+      z-index: 10;
+    }
+
+    /* 2. Liquid Glass Card Styling */
+    .card {
+      position: relative;
+      width: 100%;
+      background: rgba(30, 35, 50, 0.85); /* Fallback */
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 32px;
+      padding: 1.75rem 2rem;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+      display: flex;
+      flex-direction: column;
+      gap: 1.35rem;
+      overflow: hidden;
+      animation: slideInFadeCard 0.6s ease-out;
+    }
+
+    @supports (backdrop-filter: blur(28px)) or (-webkit-backdrop-filter: blur(28px)) {
+      .card {
+        background: rgba(255, 255, 255, 0.08);
+        -webkit-backdrop-filter: blur(28px) saturate(180%);
+        backdrop-filter: blur(28px) saturate(180%);
+      }
+    }
+
+    /* Card Sheen */
+    .card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.35) 0%, rgba(255, 255, 255, 0.08) 35%, transparent 70%);
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    .card > * {
+      position: relative;
+      z-index: 2;
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+      padding-bottom: 1rem;
+      gap: 0.5rem;
+    }
+
+    .coin-info {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    /* 3. Typography & Glass Orb Icon */
+    .coin-icon {
+      width: 42px;
+      height: 42px;
+      flex-shrink: 0;
+      border-radius: 50%;
+      background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.25), rgba(255, 255, 255, 0.05));
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      -webkit-backdrop-filter: blur(8px);
+      backdrop-filter: blur(8px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      color: #ffffff;
+      font-size: 1.35rem;
+      box-shadow: inset -2px -2px 8px rgba(0, 0, 0, 0.3), 0 8px 16px rgba(247, 147, 26, 0.2);
+      text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+    }
+
+    .coin-title {
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: var(--text-main);
+      line-height: 1.2;
+    }
+
+    .coin-symbol {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    /* 4. Glass Pills & Badges */
+    .live-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 0.35rem 0.75rem;
+      border-radius: 9999px;
+      background: rgba(16, 185, 129, 0.15);
+      -webkit-backdrop-filter: blur(12px);
+      backdrop-filter: blur(12px);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.35);
+      box-shadow: 0 0 20px rgba(16, 185, 129, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .live-dot {
+      width: 7px;
+      height: 7px;
+      background-color: var(--accent-green);
+      border-radius: 50%;
+      animation: pulse 2s infinite ease-in-out;
+      box-shadow: 0 0 8px var(--accent-green);
+    }
+
+    @keyframes pulse {
+      0%, 100% {
+        opacity: 1;
+        transform: scale(1);
+      }
+      50% {
+        opacity: 0.35;
+        transform: scale(1.3);
+      }
+    }
+
+    .price-section {
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+    }
+
+    .price-label {
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      letter-spacing: 0.08em;
+      font-weight: 600;
+    }
+
+    .price-display {
+      font-size: clamp(2rem, 7.5vw, 2.75rem);
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      font-variant-numeric: tabular-nums;
+      line-height: 1.1;
+      display: flex;
+      align-items: baseline;
+      flex-wrap: wrap;
+      background: linear-gradient(180deg, #f1f5f9 0%, #cbd5e1 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .price-currency {
+      font-size: clamp(1.4rem, 5vw, 1.85rem);
+      margin-right: 0.25rem;
+      font-weight: 600;
+      opacity: 0.85;
+    }
+
+    #priceValue {
+      display: inline-block;
+      padding: 0 4px;
+      border-radius: 8px;
+      transition: background-color 0.3s ease;
+    }
+
+    .price-flash {
+      animation: priceFlash 0.5s ease-out;
+    }
+
+    @keyframes priceFlash {
+      from {
+        background-color: rgba(245, 158, 11, 0.2);
+      }
+      to {
+        background-color: transparent;
+      }
+    }
+
+    .change-badge {
+      align-self: flex-start;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.35rem 0.8rem;
+      border-radius: 10px;
+      font-size: 0.875rem;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      transition: all 0.25s ease;
+      max-width: 100%;
+      word-break: break-word;
+      background: rgba(255, 255, 255, 0.12);
+      -webkit-backdrop-filter: blur(12px);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.25);
+    }
+
+    .change-up {
+      background: rgba(16, 185, 129, 0.18);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.4);
+      box-shadow: 0 0 16px rgba(16, 185, 129, 0.35);
+    }
+
+    .change-down {
+      background: rgba(239, 68, 68, 0.18);
+      color: #f87171;
+      border: 1px solid rgba(239, 68, 68, 0.4);
+      box-shadow: 0 0 16px rgba(239, 68, 68, 0.35);
+    }
+
+    .change-neutral {
+      background: rgba(148, 163, 184, 0.12);
+      color: #cbd5e1;
+      border: 1px solid rgba(148, 163, 184, 0.3);
+      box-shadow: 0 0 12px rgba(148, 163, 184, 0.2);
+    }
+
+    .status-section {
+      background: rgba(11, 14, 20, 0.4);
+      -webkit-backdrop-filter: blur(16px);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 16px;
+      padding: 0.95rem 1.15rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    }
+
+    .meta-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.825rem;
+      color: rgba(255, 255, 255, 0.65);
+      gap: 0.5rem;
+    }
+
+    .meta-value {
+      color: #f8fafc;
+      font-weight: 500;
+      font-variant-numeric: tabular-nums;
+      text-align: right;
+    }
+
+    .status-message {
+      font-size: 0.825rem;
+      padding: 0.65rem 0.9rem;
+      border-radius: 10px;
+      display: none;
+      word-break: break-word;
+      line-height: 1.4;
+      -webkit-backdrop-filter: blur(8px);
+      backdrop-filter: blur(8px);
+    }
+
+    .status-message.error {
+      display: block;
+      background: rgba(239, 68, 68, 0.2);
+      color: #fca5a5;
+      border: 1px solid rgba(239, 68, 68, 0.4);
+      box-shadow: 0 0 14px rgba(239, 68, 68, 0.25);
+    }
+
+    .status-message.info {
+      display: block;
+      background: rgba(245, 158, 11, 0.2);
+      color: #fde68a;
+      border: 1px solid rgba(245, 158, 11, 0.4);
+      box-shadow: 0 0 14px rgba(245, 158, 11, 0.25);
+    }
+
+    .controls {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    /* 5. Refresh Button Glass */
+    .btn-refresh {
+      background: rgba(245, 158, 11, 0.2);
+      -webkit-backdrop-filter: blur(12px);
+      backdrop-filter: blur(12px);
+      color: #fbbf24;
+      border: 1.5px solid rgba(245, 158, 11, 0.4);
+      border-radius: 16px;
+      padding: 0.85rem 1.5rem;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.6rem;
+      box-shadow: 0 8px 20px rgba(245, 158, 11, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+      user-select: none;
+      transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease, filter 0.2s ease, background 0.2s ease;
+    }
+
+    .btn-refresh:hover:not(:disabled) {
+      filter: brightness(1.15);
+      transform: translateY(-2px);
+      box-shadow: 0 12px 28px rgba(245, 158, 11, 0.25);
+    }
+
+    .btn-refresh:active:not(:disabled) {
+      transform: scale(0.97);
+      transition-timing-function: cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    .btn-refresh:disabled {
+      background: rgba(107, 114, 128, 0.1);
+      border-color: rgba(107, 114, 128, 0.2);
+      color: rgba(148, 163, 184, 0.5);
+      cursor: not-allowed;
+      box-shadow: none;
+      transform: none;
+      filter: none;
+    }
+
+    .spinner {
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(251, 191, 36, 0.25);
+      border-top-color: #fbbf24;
+      border-radius: 50%;
+      display: none;
+      animation: spin 0.8s linear infinite;
+    }
+
+    .btn-refresh.loading .spinner {
+      display: inline-block;
+    }
+
+    .btn-refresh.loading .btn-icon {
+      display: none;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .footer-note {
+      text-align: center;
+      font-size: 0.75rem;
+      color: rgba(255, 255, 255, 0.45);
+    }
+
+    /* 6. Micro-Animations */
+    @keyframes slideInFadeCard {
+      from {
+        opacity: 0;
+        transform: scale(0.95) translateY(10px);
+      }
+      to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+      }
+    }
+
+    /* 7. Responsive & Accessibility */
+    @media (max-width: 420px) {
+      body {
+        padding: 0.75rem;
+      }
+
+      .card {
+        padding: 1.25rem 1.5rem;
+        gap: 1rem;
+        border-radius: 24px;
+      }
+
+      .price-display {
+        font-size: clamp(1.75rem, 6vw, 2.3rem);
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .bg {
+        display: none;
+      }
+
+      .card, * {
+        animation: none !important;
+        transition: none !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="bg" aria-hidden="true">
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+    <div class="blob blob-3"></div>
+    <div class="blob blob-4"></div>
+  </div>
+  <div class="container">
+    <main class="card">
+      <header class="card-header">
+        <div class="coin-info">
+          <div class="coin-icon" aria-hidden="true">₿</div>
+          <div>
+            <h1 class="coin-title">Bitcoin</h1>
+            <span class="coin-symbol">BTC / USDT</span>
+          </div>
+        </div>
+        <div class="live-badge" title="Auto-refreshes every 5 seconds">
+          <span class="live-dot"></span>
+          <span>5s Live</span>
+        </div>
+      </header>
+
+      <section class="price-section" aria-live="polite">
+        <span class="price-label">Current Price</span>
+        <div class="price-display">
+          <span class="price-currency">$</span>
+          <span id="priceValue">--.--</span>
+        </div>
+        <div id="changeBadge" class="change-badge change-neutral">
+          <span id="changeIcon">●</span>
+          <span id="changeText">0.00%</span>
+        </div>
+      </section>
+
+      <section class="status-section">
+        <div class="meta-row">
+          <span>Source</span>
+          <span class="meta-value">Binance US</span>
+        </div>
+        <div class="meta-row">
+          <span>Last Updated</span>
+          <span id="lastUpdateTime" class="meta-value">Never</span>
+        </div>
+        <div class="meta-row">
+          <span>Next Auto-Refresh</span>
+          <span id="countdownText" class="meta-value">5s</span>
+        </div>
+        <div id="statusMessage" class="status-message" role="alert"></div>
+      </section>
+
+      <section class="controls">
+        <button id="refreshBtn" class="btn-refresh" type="button">
+          <span class="spinner" aria-hidden="true"></span>
+          <svg class="btn-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="23 4 23 10 17 10"></polyline>
+            <polyline points="1 20 1 14 7 14"></polyline>
+            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+          </svg>
+          <span id="btnText">Refresh Now</span>
+        </button>
+      </section>
+
+      <footer class="footer-note">
+        Auto-refreshes every 5 seconds • Data from Binance API
+      </footer>
+    </main>
+  </div>
+
+  <script>
+    (function () {
+      const API_URL = 'https://api.binance.us/api/v3/ticker/price?symbol=BTCUSDT';
+      const REFRESH_INTERVAL_SEC = 5;
+
+      // DOM Elements
+      const priceValueEl = document.getElementById('priceValue');
+      const changeBadgeEl = document.getElementById('changeBadge');
+      const changeIconEl = document.getElementById('changeIcon');
+      const changeTextEl = document.getElementById('changeText');
+      const lastUpdateTimeEl = document.getElementById('lastUpdateTime');
+      const countdownTextEl = document.getElementById('countdownText');
+      const statusMessageEl = document.getElementById('statusMessage');
+      const refreshBtn = document.getElementById('refreshBtn');
+      const btnTextEl = document.getElementById('btnText');
+
+      // State
+      let previousPrice = null;
+      let isFetching = false;
+      let countdownTimer = null;
+      let autoRefreshInterval = null;
+      let secondsUntilRefresh = REFRESH_INTERVAL_SEC;
+
+      // Format currency (2 decimal places with thousands separators)
+      function formatPrice(number) {
+        return number.toLocaleString('en-US', {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2
+        });
+      }
+
+      // Show/Hide status message
+      function setStatusMessage(message, type = 'info') {
+        if (!message) {
+          statusMessageEl.style.display = 'none';
+          statusMessageEl.textContent = '';
+          statusMessageEl.className = 'status-message';
+          return;
+        }
+        statusMessageEl.textContent = message;
+        statusMessageEl.className = `status-message ${type}`;
+        statusMessageEl.style.display = 'block';
+      }
+
+      // Update loading UI state
+      function setLoadingState(loading) {
+        if (loading) {
+          refreshBtn.classList.add('loading');
+          refreshBtn.disabled = true;
+          btnTextEl.textContent = 'Loading...';
+        } else {
+          refreshBtn.classList.remove('loading');
+          refreshBtn.disabled = false;
+          btnTextEl.textContent = 'Refresh Now';
+        }
+      }
+
+      // Update change indicator
+      function updateChangeBadge(currentPrice) {
+        if (previousPrice === null) {
+          changeBadgeEl.className = 'change-badge change-neutral';
+          changeIconEl.textContent = '●';
+          changeTextEl.textContent = '0.00% (Initial)';
+          return;
+        }
+
+        const priceDiff = currentPrice - previousPrice;
+        const percentChange = (priceDiff / previousPrice) * 100;
+
+        if (priceDiff > 0) {
+          changeBadgeEl.className = 'change-badge change-up';
+          changeIconEl.textContent = '▲';
+          changeTextEl.textContent = `+${percentChange.toFixed(2)}% (+${formatPrice(priceDiff)})`;
+        } else if (priceDiff < 0) {
+          changeBadgeEl.className = 'change-badge change-down';
+          changeIconEl.textContent = '▼';
+          changeTextEl.textContent = `${percentChange.toFixed(2)}% (-${formatPrice(Math.abs(priceDiff))})`;
+        } else {
+          changeBadgeEl.className = 'change-badge change-neutral';
+          changeIconEl.textContent = '—';
+          changeTextEl.textContent = '0.00% (No Change)';
+        }
+      }
+
+      // Fetch price from Binance API
+      async function fetchPrice() {
+        if (isFetching) {
+          return; // Prevent multiple concurrent requests
+        }
+
+        isFetching = true;
+        setLoadingState(true);
+
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+          const response = await fetch(API_URL, {
+            signal: controller.signal,
+            cache: 'no-store'
+          });
+
+          clearTimeout(timeoutId);
+
+          if (!response.ok) {
+            throw new Error(`API responded with HTTP status ${response.status}`);
+          }
+
+          const data = await response.json();
+
+          if (!data || typeof data.price === 'undefined') {
+            throw new Error('Invalid response structure received from Binance API');
+          }
+
+          const currentPrice = parseFloat(data.price);
+          if (isNaN(currentPrice)) {
+            throw new Error('Parsed price is not a valid number');
+          }
+
+          // Update Price Display
+          priceValueEl.textContent = formatPrice(currentPrice);
+          priceValueEl.classList.add('price-flash');
+          setTimeout(() => priceValueEl.classList.remove('price-flash'), 500);
+
+          // Update Percentage and Price Change
+          updateChangeBadge(currentPrice);
+
+          // Store current price for next comparison
+          previousPrice = currentPrice;
+
+          // Update Timestamp
+          const now = new Date();
+          lastUpdateTimeEl.textContent = now.toLocaleTimeString('en-US', {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false
+          });
+
+          // Clear any error status
+          setStatusMessage(null);
+
+        } catch (error) {
+          console.error('Fetch error:', error);
+          let friendlyMsg = 'Failed to fetch BTC price. ';
+          if (error.name === 'AbortError') {
+            friendlyMsg += 'Request timed out. Please check your internet connection.';
+          } else if (!navigator.onLine) {
+            friendlyMsg += 'You appear to be offline.';
+          } else {
+            friendlyMsg += (error.message || 'Network or API error occurred.');
+          }
+          setStatusMessage(friendlyMsg, 'error');
+        } finally {
+          isFetching = false;
+          setLoadingState(false);
+          resetCountdown();
+        }
+      }
+
+      // Countdown timer for next auto-refresh
+      function resetCountdown() {
+        secondsUntilRefresh = REFRESH_INTERVAL_SEC;
+        countdownTextEl.textContent = `${secondsUntilRefresh}s`;
+      }
+
+      function startTimers() {
+        // Clear any existing intervals
+        if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+        if (countdownTimer) clearInterval(countdownTimer);
+
+        // Countdown every second
+        countdownTimer = setInterval(() => {
+          if (!isFetching) {
+            secondsUntilRefresh--;
+            if (secondsUntilRefresh <= 0) {
+              secondsUntilRefresh = REFRESH_INTERVAL_SEC;
+            }
+            countdownTextEl.textContent = `${secondsUntilRefresh}s`;
+          }
+        }, 1000);
+
+        // Auto-refresh every 5 seconds
+        autoRefreshInterval = setInterval(() => {
+          fetchPrice();
+        }, REFRESH_INTERVAL_SEC * 1000);
+      }
+
+      function handleManualRefresh() {
+        if (isFetching) return;
+        fetchPrice();
+        startTimers(); // Reset auto-refresh cycle so it doesn't double-fetch immediately after
+      }
+
+      // Event Listeners
+      refreshBtn.addEventListener('click', handleManualRefresh);
+
+      // Initial Fetch & Start Timers
+      fetchPrice();
+      startTimers();
+    })();
+  </script>
+</body>
+</html>
