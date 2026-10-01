@@ -3,11 +3,25 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>BTC Price Tracker - Binance</title>
+  <title>BTC Candles & Polymarket Predict</title>
   <style>
+    @property --rotX {
+      syntax: '<angle>';
+      inherits: true;
+      initial-value: 0deg;
+    }
+
+    @property --rotY {
+      syntax: '<angle>';
+      inherits: true;
+      initial-value: 0deg;
+    }
+
     :root {
+      --rotX: 0deg;
+      --rotY: 0deg;
       --bg-color: #07090e;
-      --card-bg: rgba(255, 255, 255, 0.08);
+      --card-bg: rgba(255, 255, 255, 0.15);
       --card-border: rgba(255, 255, 255, 0.18);
       --text-main: #f1f5f9;
       --text-muted: #94a3b8;
@@ -19,6 +33,7 @@
       --accent-neutral: #94a3b8;
       --accent-neutral-bg: rgba(148, 163, 184, 0.12);
       --primary-btn: #f59e0b;
+      --accent-indigo: #a5b4fc;
     }
 
     * {
@@ -165,33 +180,41 @@
 
     .container {
       width: 100%;
-      max-width: 440px;
+      max-width: 760px;
       margin: 0 auto;
       position: relative;
       z-index: 10;
+      perspective: 1200px;
     }
 
     /* 2. Liquid Glass Card Styling */
     .card {
+      --rotX: 0deg;
+      --rotY: 0deg;
       position: relative;
       width: 100%;
       background: rgba(30, 35, 50, 0.85); /* Fallback */
       border: 1px solid rgba(255, 255, 255, 0.18);
       border-radius: 32px;
       padding: 1.75rem 2rem;
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35), 0 2px 0 rgba(255, 255, 255, 0.25) inset;
       display: flex;
       flex-direction: column;
       gap: 1.35rem;
       overflow: hidden;
       animation: slideInFadeCard 0.6s ease-out;
+      perspective: 1200px;
+      transform-style: preserve-3d;
+      transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+      transform: perspective(1200px) rotateX(var(--rotX, 0deg)) rotateY(var(--rotY, 0deg));
+      will-change: transform;
     }
 
     @supports (backdrop-filter: blur(28px)) or (-webkit-backdrop-filter: blur(28px)) {
       .card {
-        background: rgba(255, 255, 255, 0.08);
-        -webkit-backdrop-filter: blur(28px) saturate(180%);
-        backdrop-filter: blur(28px) saturate(180%);
+        background: rgba(255, 255, 255, 0.15);
+        -webkit-backdrop-filter: blur(28px) saturate(200%);
+        backdrop-filter: blur(28px) saturate(200%);
       }
     }
 
@@ -206,9 +229,26 @@
       z-index: 1;
     }
 
+    /* Card Specular Edge: 1px gradient border brighter at top-left, fading to transparent bottom-right */
+    .card::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      padding: 1px;
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.55) 0%, rgba(255, 255, 255, 0.18) 35%, rgba(255, 255, 255, 0) 70%);
+      -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      -webkit-mask-composite: xor;
+      mask-composite: exclude;
+      pointer-events: none;
+      z-index: 1;
+    }
+
     .card > * {
       position: relative;
       z-index: 2;
+      min-width: 0;
     }
 
     .card-header {
@@ -302,7 +342,9 @@
     .price-section {
       display: flex;
       flex-direction: column;
+      align-items: flex-start;
       gap: 0.6rem;
+      min-width: 0;
     }
 
     .price-label {
@@ -311,6 +353,7 @@
       color: var(--text-muted);
       letter-spacing: 0.08em;
       font-weight: 600;
+      min-width: 0;
     }
 
     .price-display {
@@ -326,6 +369,8 @@
       -webkit-background-clip: text;
       background-clip: text;
       -webkit-text-fill-color: transparent;
+      min-width: 0;
+      overflow-wrap: anywhere;
     }
 
     .price-currency {
@@ -340,6 +385,7 @@
       padding: 0 4px;
       border-radius: 8px;
       transition: background-color 0.3s ease;
+      overflow-wrap: anywhere;
     }
 
     .price-flash {
@@ -368,6 +414,7 @@
       transition: all 0.25s ease;
       max-width: 100%;
       word-break: break-word;
+      overflow-wrap: anywhere;
       background: rgba(255, 255, 255, 0.12);
       -webkit-backdrop-filter: blur(12px);
       backdrop-filter: blur(12px);
@@ -393,6 +440,325 @@
       color: #cbd5e1;
       border: 1px solid rgba(148, 163, 184, 0.3);
       box-shadow: 0 0 12px rgba(148, 163, 184, 0.2);
+    }
+
+    .chart-section {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .chart-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 0.25rem;
+    }
+
+    .chart-title {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      letter-spacing: 0.08em;
+      font-weight: 600;
+    }
+
+    .poly-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 0.3rem 0.75rem;
+      border-radius: 9999px;
+      background: rgba(245, 158, 11, 0.15);
+      -webkit-backdrop-filter: blur(12px);
+      backdrop-filter: blur(12px);
+      color: #fbbf24;
+      border: 1px solid rgba(245, 158, 11, 0.35);
+      box-shadow: 0 0 16px rgba(245, 158, 11, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+      white-space: nowrap;
+      flex-shrink: 0;
+      user-select: none;
+      transition: background-color 0.25s ease, color 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+    }
+
+    .poly-pill--ok {
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      border-color: rgba(16, 185, 129, 0.35);
+      box-shadow: 0 0 16px rgba(16, 185, 129, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    }
+
+    .poly-pill--warn {
+      background: rgba(245, 158, 11, 0.15);
+      color: #fbbf24;
+      border-color: rgba(245, 158, 11, 0.35);
+      box-shadow: 0 0 16px rgba(245, 158, 11, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    }
+
+    .poly-pill--off {
+      background: rgba(239, 68, 68, 0.15);
+      color: #f87171;
+      border-color: rgba(239, 68, 68, 0.35);
+      box-shadow: 0 0 16px rgba(239, 68, 68, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    }
+
+    .poly-pill-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent-green);
+      display: inline-block;
+      box-shadow: 0 0 6px var(--accent-green);
+      animation: pulse 2s infinite ease-in-out;
+    }
+
+    .chart-panel,
+    .prediction-panel {
+      position: relative;
+      background: rgba(11, 14, 20, 0.88); /* Fallback */
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+      overflow: hidden;
+      min-width: 0;
+    }
+
+    @supports (backdrop-filter: blur(16px)) or (-webkit-backdrop-filter: blur(16px)) {
+      .chart-panel,
+      .prediction-panel {
+        background: rgba(11, 14, 20, 0.4);
+        -webkit-backdrop-filter: blur(16px);
+        backdrop-filter: blur(16px);
+      }
+    }
+
+    .chart-panel {
+      border-radius: 20px;
+      height: clamp(220px, 38vw, 320px);
+    }
+
+    /* Inner Glass Sheen Animation (faint sheen moving slowly across panel) */
+    .chart-panel::before,
+    .prediction-panel::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(
+        115deg,
+        transparent 0%,
+        rgba(255, 255, 255, 0.35) 40%,
+        rgba(255, 255, 255, 0.7) 50%,
+        rgba(255, 255, 255, 0.35) 60%,
+        transparent 100%
+      );
+      opacity: 0.08;
+      pointer-events: none;
+      transform: translateX(0);
+      animation: panelSheen 9s linear infinite;
+      z-index: 2;
+    }
+
+    @keyframes panelSheen {
+      0% {
+        transform: translateX(0);
+      }
+      100% {
+        transform: translateX(200%);
+      }
+    }
+
+    #chartCanvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      touch-action: pan-y;
+      cursor: crosshair;
+    }
+
+    .chart-tooltip {
+      position: absolute;
+      top: 0;
+      left: 0;
+      pointer-events: none;
+      font-variant-numeric: tabular-nums;
+      background: rgba(15, 23, 42, 0.85);
+      -webkit-backdrop-filter: blur(12px);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 10px;
+      padding: 0.45rem 0.65rem;
+      font-size: 0.72rem;
+      color: #f1f5f9;
+      line-height: 1.45;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+      z-index: 10;
+      white-space: nowrap;
+      transition: opacity 0.15s ease;
+    }
+
+    .chart-tooltip[hidden] {
+      display: none !important;
+    }
+
+    .chart-tooltip-time {
+      font-weight: 700;
+      color: var(--text-muted);
+      margin-bottom: 2px;
+      font-size: 0.7rem;
+    }
+
+    .chart-tooltip-row {
+      display: flex;
+      gap: 8px;
+      justify-content: space-between;
+      font-size: 0.68rem;
+    }
+
+    .chart-tooltip-row span {
+      color: rgba(255, 255, 255, 0.85);
+    }
+
+    .chart-tooltip-poly {
+      margin-top: 3px;
+      padding-top: 2px;
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+      color: #fbbf24;
+      font-weight: 600;
+      font-size: 0.68rem;
+    }
+
+    .chart-empty {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      font-weight: 500;
+      pointer-events: none;
+      background: rgba(11, 14, 20, 0.5);
+      -webkit-backdrop-filter: blur(4px);
+      backdrop-filter: blur(4px);
+      z-index: 5;
+    }
+
+    .chart-empty[hidden] {
+      display: none !important;
+    }
+
+    /* Prediction Panel */
+    .prediction-panel {
+      border-radius: 16px;
+      padding: 0.85rem 1.1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+      overflow-wrap: anywhere;
+    }
+
+    .prediction-panel > * {
+      position: relative;
+      z-index: 3;
+    }
+
+    .pred-header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .pred-header-label {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      letter-spacing: 0.08em;
+      font-weight: 600;
+    }
+
+    .pred-countdown {
+      font-size: 0.825rem;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      color: #f8fafc;
+    }
+
+    .pred-direction {
+      font-size: 1.25rem;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      line-height: 1.2;
+      transition: color 0.3s ease;
+    }
+
+    .pred-dir--up {
+      color: var(--accent-green);
+    }
+
+    .pred-dir--down {
+      color: var(--accent-red);
+    }
+
+    .pred-dir--neutral {
+      color: var(--accent-neutral);
+    }
+
+    .pred-dir--none {
+      color: var(--text-dim);
+    }
+
+    .pred-bar-section {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+
+    .pred-bar-track {
+      height: 8px;
+      border-radius: 9999px;
+      overflow: hidden;
+      display: flex;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      position: relative;
+    }
+
+    .pred-bar-segment {
+      height: 100%;
+      transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .pred-bar-up {
+      background: var(--accent-green);
+      box-shadow: 0 0 8px rgba(16, 185, 129, 0.4);
+    }
+
+    .pred-bar-down {
+      background: var(--accent-red);
+      box-shadow: 0 0 8px rgba(239, 68, 68, 0.4);
+    }
+
+    .pred-bar-labels {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11px;
+      color: var(--text-muted);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .pred-meta-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.8rem;
+      color: rgba(255, 255, 255, 0.65);
+      gap: 0.5rem;
+      font-variant-numeric: tabular-nums;
     }
 
     .status-section {
@@ -478,6 +844,14 @@
       transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease, filter 0.2s ease, background 0.2s ease;
     }
 
+    .btn-refresh:focus-visible,
+    .poly-pill:focus-visible,
+    .live-badge:focus-visible,
+    .change-badge:focus-visible {
+      outline: 2px solid rgba(251, 191, 36, 0.6);
+      outline-offset: 2px;
+    }
+
     .btn-refresh:hover:not(:disabled) {
       filter: brightness(1.15);
       transform: translateY(-2px);
@@ -540,19 +914,92 @@
     }
 
     /* 7. Responsive & Accessibility */
+    @media (max-width: 720px) {
+      .container {
+        width: 100%;
+        max-width: 100%;
+      }
+
+      .chart-panel {
+        height: clamp(200px, 52vw, 280px);
+      }
+    }
+
     @media (max-width: 420px) {
       body {
-        padding: 0.75rem;
+        padding: 0.5rem;
       }
 
       .card {
-        padding: 1.25rem 1.5rem;
-        gap: 1rem;
+        padding: 1.1rem 1.1rem;
+        gap: 0.9rem;
         border-radius: 24px;
       }
 
+      .card-header {
+        gap: 0.35rem;
+      }
+
+      .coin-icon {
+        width: 36px;
+        height: 36px;
+        font-size: 1.15rem;
+      }
+
+      .coin-title {
+        font-size: 1.05rem;
+      }
+
+      .live-badge {
+        font-size: 0.7rem;
+        padding: 0.25rem 0.6rem;
+      }
+
       .price-display {
-        font-size: clamp(1.75rem, 6vw, 2.3rem);
+        font-size: clamp(1.6rem, 6.5vw, 2.1rem);
+      }
+
+      .change-badge {
+        font-size: 0.8rem;
+        padding: 0.3rem 0.65rem;
+      }
+
+      .prediction-panel {
+        padding: 0.75rem 0.85rem;
+        gap: 0.5rem;
+      }
+
+      .pred-header-row {
+        gap: 0.25rem;
+        flex-wrap: wrap;
+      }
+
+      .pred-direction {
+        font-size: 1.1rem;
+      }
+
+      .pred-bar-labels {
+        font-size: 10px;
+      }
+
+      .pred-meta-row {
+        flex-wrap: wrap;
+        font-size: 0.72rem;
+        gap: 0.25rem;
+      }
+
+      .status-section {
+        padding: 0.75rem 0.85rem;
+        gap: 0.5rem;
+      }
+
+      .meta-row {
+        font-size: 0.775rem;
+      }
+
+      .btn-refresh {
+        padding: 0.75rem 1.25rem;
+        font-size: 0.95rem;
       }
     }
 
@@ -564,6 +1011,16 @@
       .card, * {
         animation: none !important;
         transition: none !important;
+      }
+
+      .pred-bar-segment {
+        transition: none !important;
+      }
+
+      .chart-panel::before,
+      .prediction-panel::before {
+        animation: none !important;
+        display: none !important;
       }
     }
   </style>
@@ -603,6 +1060,41 @@
         </div>
       </section>
 
+      <section class="chart-section">
+        <div class="chart-header">
+          <span class="chart-title">BTC/USDT · 5m</span>
+          <span id="polyPill" class="poly-pill">Polymarket …</span>
+        </div>
+        <div class="chart-panel">
+          <canvas id="chartCanvas"></canvas>
+          <div id="chartTooltip" class="chart-tooltip" hidden></div>
+          <div id="chartEmpty" class="chart-empty">Loading chart…</div>
+        </div>
+        <div id="predictionPanel" class="prediction-panel pred-panel">
+          <div class="pred-header-row">
+            <span class="pred-header-label">Next 5m candle</span>
+            <span id="predCountdown" class="pred-countdown">--:--</span>
+          </div>
+          <div id="predDirection" class="pred-direction pred-dir--none" aria-live="polite">
+            No prediction
+          </div>
+          <div class="pred-bar-section">
+            <div class="pred-bar-track">
+              <div id="predBarUp" class="pred-bar-segment pred-bar-up" style="width: 50%;"></div>
+              <div id="predBarDown" class="pred-bar-segment pred-bar-down" style="width: 50%;"></div>
+            </div>
+            <div class="pred-bar-labels">
+              <span id="predLabelUp">Up --%</span>
+              <span id="predLabelDown">Down --%</span>
+            </div>
+          </div>
+          <div class="pred-meta-row">
+            <span id="predVolume" style="display: none;"></span>
+            <span id="predAccuracy">Accuracy: collecting…</span>
+          </div>
+        </div>
+      </section>
+
       <section class="status-section">
         <div class="meta-row">
           <span>Source</span>
@@ -632,7 +1124,7 @@
       </section>
 
       <footer class="footer-note">
-        Auto-refreshes every 5 seconds • Data from Binance API
+        Auto-refreshes every 5 seconds • Data from Binance & Polymarket • Not financial advice
       </footer>
     </main>
   </div>
@@ -776,6 +1268,9 @@
             hour12: false
           });
 
+          // Apply live tick to klines
+          applyLiveTick(currentPrice);
+
           // Clear any error status
           setStatusMessage(null);
 
@@ -834,9 +1329,1749 @@
       // Event Listeners
       refreshBtn.addEventListener('click', handleManualRefresh);
 
+      // ==========================================
+      // Data Layer: Binance Klines & Polymarket 5m
+      // ==========================================
+      const KLINES_URL = 'https://api.binance.us/api/v3/klines?symbol=BTCUSDT&interval=5m&limit=96';
+      const POLY_BASE = 'https://gamma-api.polymarket.com';
+
+      // Klines State
+      let candles = [];
+      let isFetchingKlines = false;
+      let lastKlinesAttempt = 0;
+
+      // Polymarket State
+      const poly = {
+        next: null,
+        current: null,
+        history: new Map(),
+        status: 'loading',
+        updatedAt: null
+      };
+      let isFetchingPoly = false;
+      let polyBackoffUntil = 0;
+      let polyInterval = null;
+
+      // Predictions storage helper
+      function getPredictions() {
+        try {
+          const raw = localStorage.getItem('btc_poly_predictions');
+          if (!raw) return {};
+          const parsed = JSON.parse(raw);
+          return (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) ? parsed : {};
+        } catch (e) {
+          return {};
+        }
+      }
+
+      function recordPrediction() {
+        if (!poly.next || typeof poly.next.startSec !== 'number') {
+          return;
+        }
+        const windowStart = poly.next.startSec;
+        if (Date.now() >= windowStart * 1000) {
+          return;
+        }
+
+        try {
+          const predictions = getPredictions();
+          predictions[windowStart] = {
+            windowStart,
+            up: poly.next.up
+          };
+
+          const keys = Object.keys(predictions)
+            .map(Number)
+            .filter(n => Number.isFinite(n))
+            .sort((a, b) => a - b);
+
+          if (keys.length > 48) {
+            const toDelete = keys.slice(0, keys.length - 48);
+            for (const k of toDelete) {
+              delete predictions[k];
+            }
+          }
+
+          localStorage.setItem('btc_poly_predictions', JSON.stringify(predictions));
+        } catch (e) {
+          // localStorage access failed or blocked
+        }
+      }
+
+      // Expose state on single object
+      window.__btcData = {
+        get candles() {
+          return candles;
+        },
+        set candles(val) {
+          candles = val;
+        },
+        poly,
+        predictions: getPredictions,
+        applyLiveTick,
+        fetchKlines,
+        refreshPoly
+      };
+
+      // Fetch 5m Klines from Binance API
+      async function fetchKlines() {
+        if (isFetchingKlines) {
+          return candles;
+        }
+        isFetchingKlines = true;
+        lastKlinesAttempt = Date.now();
+
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+          const response = await fetch(KLINES_URL, {
+            signal: controller.signal,
+            cache: 'no-store'
+          });
+
+          clearTimeout(timeoutId);
+
+          if (!response.ok) {
+            throw new Error(`Klines API HTTP ${response.status}`);
+          }
+
+          const data = await response.json();
+          if (!Array.isArray(data) || data.length === 0) {
+            throw new Error('Invalid klines response structure');
+          }
+
+          const parsed = [];
+          for (const row of data) {
+            if (!Array.isArray(row) || row.length < 6) continue;
+            const t = Number(row[0]);
+            const o = parseFloat(row[1]);
+            const h = parseFloat(row[2]);
+            const l = parseFloat(row[3]);
+            const c = parseFloat(row[4]);
+            const v = parseFloat(row[5]);
+
+            if (
+              Number.isFinite(t) &&
+              Number.isFinite(o) &&
+              Number.isFinite(h) &&
+              Number.isFinite(l) &&
+              Number.isFinite(c) &&
+              Number.isFinite(v)
+            ) {
+              parsed.push({ t, o, h, l, c, v });
+            }
+          }
+
+          if (parsed.length === 0) {
+            throw new Error('All klines rows were invalid');
+          }
+
+          parsed.sort((a, b) => a.t - b.t);
+          candles = parsed;
+          document.dispatchEvent(new CustomEvent('btc:data'));
+          return candles;
+        } catch (err) {
+          console.error('fetchKlines error:', err);
+          return candles;
+        } finally {
+          isFetchingKlines = false;
+        }
+      }
+
+      // Live update for klines from current price
+      function applyLiveTick(price) {
+        if (!candles || candles.length === 0) {
+          return;
+        }
+        const now = Date.now();
+        const last = candles[candles.length - 1];
+
+        if (now >= last.t + 300000) {
+          if (!isFetchingKlines && now - lastKlinesAttempt >= 5000) {
+            lastKlinesAttempt = now;
+            fetchKlines().catch(err => console.error('fetchKlines error:', err));
+          }
+        } else {
+          last.c = price;
+          if (price > last.h) last.h = price;
+          if (price < last.l) last.l = price;
+          document.dispatchEvent(new CustomEvent('btc:data'));
+        }
+      }
+
+      // Fetch Polymarket event by slug with retry on keyset
+      async function polyEventBySlug(slug) {
+        if (Date.now() < polyBackoffUntil) {
+          throw new Error('Polymarket rate limit backoff active');
+        }
+
+        async function doFetch(url) {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 8000);
+          try {
+            const response = await fetch(url, {
+              signal: controller.signal,
+              cache: 'no-store'
+            });
+            return response;
+          } finally {
+            clearTimeout(timeoutId);
+          }
+        }
+
+        function extractEvent(data) {
+          if (!data) return null;
+          if (Array.isArray(data)) {
+            return data.length > 0 ? data[0] : null;
+          }
+          if (typeof data === 'object') {
+            if (Array.isArray(data.events)) {
+              return data.events.length > 0 ? data.events[0] : null;
+            }
+            if (Array.isArray(data.data)) {
+              return data.data.length > 0 ? data.data[0] : null;
+            }
+          }
+          return null;
+        }
+
+        const res = await doFetch(`${POLY_BASE}/events?slug=${slug}`);
+
+        if (res.status === 429) {
+          polyBackoffUntil = Date.now() + 60000;
+          throw new Error('HTTP 429 Rate limited');
+        }
+
+        if (res.status === 404) {
+          return null;
+        }
+
+        if (!res.ok) {
+          const fallbackRes = await doFetch(`${POLY_BASE}/events/keyset?slug=${slug}`);
+          if (fallbackRes.status === 429) {
+            polyBackoffUntil = Date.now() + 60000;
+            throw new Error('HTTP 429 Rate limited');
+          }
+          if (fallbackRes.status === 404) {
+            return null;
+          }
+          if (!fallbackRes.ok) {
+            throw new Error(`HTTP error ${fallbackRes.status}`);
+          }
+          const data = await fallbackRes.json();
+          return extractEvent(data);
+        }
+
+        const data = await res.json();
+        return extractEvent(data);
+      }
+
+      // Parse Polymarket market data
+      function parseMarket(event, windowStartSec) {
+        if (!event || !event.markets || !Array.isArray(event.markets) || event.markets.length === 0) {
+          return null;
+        }
+        const m = event.markets[0];
+        if (!m) return null;
+
+        let T = windowStartSec;
+        if (typeof T !== 'number' || isNaN(T)) {
+          const slug = event.slug || m.slug;
+          const match = typeof slug === 'string' && slug.match(/btc-updown-5m-(\d+)/);
+          if (match) {
+            T = parseInt(match[1], 10);
+          }
+        }
+        if (typeof T !== 'number' || isNaN(T)) {
+          return null;
+        }
+
+        let outcomes;
+        try {
+          if (Array.isArray(m.outcomes)) {
+            outcomes = m.outcomes;
+          } else if (typeof m.outcomes === 'string') {
+            outcomes = JSON.parse(m.outcomes);
+          }
+        } catch (e) {
+          return null;
+        }
+        if (!Array.isArray(outcomes)) return null;
+
+        let prices;
+        try {
+          if (Array.isArray(m.outcomePrices)) {
+            prices = m.outcomePrices;
+          } else if (typeof m.outcomePrices === 'string') {
+            prices = JSON.parse(m.outcomePrices);
+          }
+        } catch (e) {
+          return null;
+        }
+        if (!Array.isArray(prices)) return null;
+
+        const upIndex = outcomes.findIndex(o => typeof o === 'string' && o.trim().toLowerCase() === 'up');
+        const downIndex = outcomes.findIndex(o => typeof o === 'string' && o.trim().toLowerCase() === 'down');
+
+        if (upIndex === -1 || downIndex === -1) return null;
+
+        const up = parseFloat(prices[upIndex]);
+        const down = parseFloat(prices[downIndex]);
+
+        if (!Number.isFinite(up) || !Number.isFinite(down) || isNaN(up) || isNaN(down)) {
+          return null;
+        }
+
+        const windowEndPassed = Date.now() >= (T + 300) * 1000;
+        const resolved = (m.closed === true) || (Math.max(up, down) >= 0.99 && windowEndPassed);
+        const outcome = resolved ? (up > down ? 'Up' : 'Down') : null;
+
+        return {
+          startSec: T,
+          up,
+          down,
+          resolved,
+          outcome,
+          accepting: !!m.acceptingOrders,
+          volume: Number(m.volume) || 0,
+          fetchedAt: Date.now()
+        };
+      }
+
+      // Refresh Polymarket markets (next, current, and missing history)
+      async function refreshPoly() {
+        if (isFetchingPoly) {
+          return;
+        }
+        if (Date.now() < polyBackoffUntil) {
+          return;
+        }
+
+        isFetchingPoly = true;
+
+        try {
+          const nowSec = Math.floor(Date.now() / 1000);
+          const T = Math.floor(nowSec / 300) * 300;
+
+          const tasks = [
+            { role: 'next', tSec: T + 300 },
+            { role: 'current', tSec: T }
+          ];
+
+          for (let i = 1; i <= 12; i++) {
+            const tHist = T - i * 300;
+            if (!poly.history.has(tHist)) {
+              tasks.push({ role: 'history', tSec: tHist });
+            }
+          }
+
+          const results = await Promise.allSettled(
+            tasks.map(task =>
+              polyEventBySlug(`btc-updown-5m-${task.tSec}`).then(event => ({
+                task,
+                event
+              }))
+            )
+          );
+
+          const nextRes = results[0];
+          const currentRes = results[1];
+
+          if (nextRes.status === 'fulfilled') {
+            poly.next = nextRes.value.event ? parseMarket(nextRes.value.event, T + 300) : null;
+          } else {
+            if (!poly.next || poly.next.startSec !== T + 300) {
+              poly.next = null;
+            }
+          }
+
+          if (currentRes.status === 'fulfilled') {
+            poly.current = currentRes.value.event ? parseMarket(currentRes.value.event, T) : null;
+          } else {
+            if (!poly.current || poly.current.startSec !== T) {
+              poly.current = null;
+            }
+          }
+
+          for (const res of results) {
+            if (res.status === 'fulfilled' && res.value && res.value.event) {
+              const { task, event } = res.value;
+              const parsed = (task.role === 'next')
+                ? poly.next
+                : (task.role === 'current' ? poly.current : parseMarket(event, task.tSec));
+              if (parsed && parsed.resolved && Date.now() >= (task.tSec + 300) * 1000) {
+                poly.history.set(task.tSec, parsed);
+              }
+            }
+          }
+
+          while (poly.history.size > 48) {
+            let oldestT = Infinity;
+            for (const key of poly.history.keys()) {
+              if (key < oldestT) oldestT = key;
+            }
+            poly.history.delete(oldestT);
+          }
+
+          if (poly.next !== null || poly.current !== null) {
+            poly.status = 'ok';
+          } else {
+            const anyFulfilled = results.some(r => r.status === 'fulfilled');
+            if (anyFulfilled) {
+              poly.status = 'no-market';
+            } else {
+              poly.status = 'unavailable';
+            }
+          }
+
+          poly.updatedAt = Date.now();
+
+          if (poly.next) {
+            recordPrediction();
+          }
+
+          document.dispatchEvent(new CustomEvent('btc:data'));
+        } catch (err) {
+          console.error('refreshPoly error:', err);
+          poly.status = 'unavailable';
+        } finally {
+          isFetchingPoly = false;
+        }
+      }
+
+      function startPolyTimer() {
+        if (polyInterval) clearInterval(polyInterval);
+        polyInterval = setInterval(() => {
+          if (document.hidden) {
+            return;
+          }
+          refreshPoly();
+        }, 10000);
+      }
+
+      // ==========================================
+      // Candlestick Chart
+      // ==========================================
+      const chartPanelEl = document.querySelector('.chart-panel');
+      const chartCanvasEl = document.getElementById('chartCanvas');
+      const chartTooltipEl = document.getElementById('chartTooltip');
+      const chartEmptyEl = document.getElementById('chartEmpty');
+      const chartCtx = chartCanvasEl ? chartCanvasEl.getContext('2d') : null;
+
+      // Polymarket & Prediction Elements
+      const polyPillEl = document.getElementById('polyPill');
+      const predictionPanelEl = document.getElementById('predictionPanel');
+      const predCountdownEl = document.getElementById('predCountdown');
+      const predDirectionEl = document.getElementById('predDirection');
+      const predBarUpEl = document.getElementById('predBarUp');
+      const predBarDownEl = document.getElementById('predBarDown');
+      const predLabelUpEl = document.getElementById('predLabelUp');
+      const predLabelDownEl = document.getElementById('predLabelDown');
+      const predVolumeEl = document.getElementById('predVolume');
+      const predAccuracyEl = document.getElementById('predAccuracy');
+
+      // Read colors from CSS variables once (fallback #10b981 / #ef4444 / #94a3b8)
+      const rootStyles = getComputedStyle(document.documentElement);
+      const accentGreen = rootStyles.getPropertyValue('--accent-green').trim() || '#10b981';
+      const accentRed = rootStyles.getPropertyValue('--accent-red').trim() || '#ef4444';
+      const accentNeutral = rootStyles.getPropertyValue('--accent-neutral').trim() || '#94a3b8';
+
+      function parseHexColor(color) {
+        let c = color.replace('#', '').trim();
+        if (c.length === 3) c = c[0] + c[0] + c[1] + c[1] + c[2] + c[2];
+        if (c.length === 6) {
+          const num = parseInt(c, 16);
+          return {
+            r: (num >> 16) & 255,
+            g: (num >> 8) & 255,
+            b: num & 255
+          };
+        }
+        return { r: 128, g: 128, b: 128 };
+      }
+
+      function lightenHex(color, percent) {
+        const { r, g, b } = parseHexColor(color);
+        const lr = Math.min(255, Math.max(0, r + Math.round((255 - r) * (percent / 100))));
+        const lg = Math.min(255, Math.max(0, g + Math.round((255 - g) * (percent / 100))));
+        const lb = Math.min(255, Math.max(0, b + Math.round((255 - b) * (percent / 100))));
+        return `rgb(${lr}, ${lg}, ${lb})`;
+      }
+
+      function hexToAlpha(color, alpha) {
+        const { r, g, b } = parseHexColor(color);
+        return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+      }
+
+      const greenLighter = lightenHex(accentGreen, 30);
+      const greenGlow = hexToAlpha(accentGreen, 0.5);
+      const greenTagBg = hexToAlpha(accentGreen, 0.85);
+
+      const redLighter = lightenHex(accentRed, 30);
+      const redGlow = hexToAlpha(accentRed, 0.5);
+      const redTagBg = hexToAlpha(accentRed, 0.85);
+
+      function drawRoundRect(c, x, y, w, h, r) {
+        if (w <= 0 || h <= 0) return;
+        r = Math.min(r, w / 2, h / 2);
+        if (r <= 0) {
+          c.rect(x, y, w, h);
+          return;
+        }
+        if (typeof c.roundRect === 'function') {
+          c.roundRect(x, y, w, h, r);
+        } else {
+          c.moveTo(x + r, y);
+          c.arcTo(x + w, y, x + w, y + h, r);
+          c.arcTo(x + w, y + h, x, y + h, r);
+          c.arcTo(x, y + h, x, y, r);
+          c.arcTo(x, y, x + w, y, r);
+          c.closePath();
+        }
+      }
+
+      // Nice ticks helper (1/2/2.5/5 x 10^k)
+      function getNiceTicks(min, max, targetCount = 5) {
+        if (!Number.isFinite(min) || !Number.isFinite(max) || max <= min) {
+          return { step: 1, ticks: [] };
+        }
+        const range = max - min;
+        const rawStep = range / targetCount;
+        const k = Math.floor(Math.log10(rawStep));
+        const magnitude = Math.pow(10, k);
+        const fraction = rawStep / magnitude;
+
+        let multiplier;
+        if (fraction < 1.5) multiplier = 1;
+        else if (fraction < 2.25) multiplier = 2;
+        else if (fraction < 3.75) multiplier = 2.5;
+        else if (fraction < 7.5) multiplier = 5;
+        else multiplier = 10;
+
+        const step = multiplier * magnitude;
+        const firstTick = Math.ceil(min / step) * step;
+        const ticks = [];
+
+        let count = 0;
+        for (let v = firstTick; v <= max + step * 0.001 && count < 25; v += step) {
+          if (v >= min - step * 0.001) {
+            const rounded = Math.round(v / (step * 0.1)) * (step * 0.1);
+            const dec = step < 1 ? Math.min(4, Math.ceil(-Math.log10(step))) : 0;
+            ticks.push(Number(rounded.toFixed(dec)));
+          }
+          count++;
+        }
+        return { step, ticks };
+      }
+
+      function formatPriceTick(val, step) {
+        if (step < 1) {
+          const dec = Math.max(0, Math.min(4, Math.ceil(-Math.log10(step) + 0.001)));
+          return val.toLocaleString('en-US', {
+            minimumFractionDigits: dec,
+            maximumFractionDigits: dec
+          });
+        }
+        return Math.round(val).toLocaleString('en-US');
+      }
+
+      // Nearest candle index helper
+      function getNearestCandleIndex(px, visibleCount, slotWidth, plotLeft, slideOffset) {
+        if (visibleCount <= 0 || slotWidth <= 0) return -1;
+        const rawIdx = Math.round((px - plotLeft - slideOffset) / slotWidth - 0.5);
+        return Math.max(0, Math.min(visibleCount - 1, rawIdx));
+      }
+
+      // Chart State
+      let chartDpr = 1;
+      let chartPanelW = 0;
+      let chartPanelH = 0;
+      let chartRafId = null;
+      let chartDirty = true;
+      let lastChartFrameTime = performance.now();
+
+      // Animated display values
+      let displayMin = null;
+      let displayMax = null;
+      let displayClose = null;
+      let displayHigh = null;
+      let displayLow = null;
+
+      // Sliding animation state
+      let slideActive = false;
+      let slideStartTime = 0;
+      let slideOffset = 0;
+      let prevCandlesLen = 0;
+      let prevFirstCandleT = 0;
+
+      // Pointer / Crosshair state
+      let isPointerActive = false;
+      let pointerX = 0;
+      let pointerY = 0;
+      let touchTimeoutId = null;
+
+      // Empty state timer (10s fallback)
+      let chartEmptyTimeout = setTimeout(() => {
+        const cList = (window.__btcData && window.__btcData.candles) || [];
+        if (cList.length === 0 && chartEmptyEl) {
+          chartEmptyEl.textContent = 'Chart unavailable';
+        }
+      }, 10000);
+
+      // Public API
+      window.__btcChart = {
+        redraw() {
+          markChartDirty();
+        },
+        overlays: []
+      };
+
+      // ==========================================
+      // Prediction Helpers & Overlays
+      // ==========================================
+      function computeDirectionAndConfidence(rawUp, rawDown) {
+        if (!Number.isFinite(rawUp)) {
+          return { direction: 'none', confidence: 0, normUp: 0.5, normDown: 0.5 };
+        }
+        const d = Number.isFinite(rawDown) ? rawDown : (1 - rawUp);
+        const sum = rawUp + d;
+        const normUp = sum > 0 ? rawUp / sum : 0.5;
+        const normDown = sum > 0 ? d / sum : 0.5;
+        const confidence = Math.min(1, Math.max(0, Math.abs(normUp - 0.5) * 2));
+
+        let direction = 'neutral';
+        if (normUp >= 0.55) {
+          direction = 'up';
+        } else if (normUp <= 0.45) {
+          direction = 'down';
+        }
+
+        return { direction, confidence, normUp, normDown };
+      }
+
+      function formatVolume(val) {
+        if (!Number.isFinite(val) || val <= 0) return '';
+        if (val >= 1e6) {
+          const num = (val / 1e6).toFixed(1).replace(/\.0$/, '');
+          return `$${num}M`;
+        }
+        if (val >= 1e3) {
+          const num = (val / 1e3).toFixed(1).replace(/\.0$/, '');
+          return `$${num}K`;
+        }
+        const formatted = val % 1 === 0 ? val.toString() : val.toFixed(1).replace(/\.0$/, '');
+        return `$${formatted}`;
+      }
+
+      function formatCountdown(targetMs, nowMs = Date.now()) {
+        if (!Number.isFinite(targetMs)) return '--:--';
+        const diffMs = targetMs - nowMs;
+        if (diffMs <= 0) return '00:00';
+        const totalSec = Math.floor(diffMs / 1000);
+        const mm = String(Math.floor(totalSec / 60)).padStart(2, '0');
+        const ss = String(totalSec % 60).padStart(2, '0');
+        return `${mm}:${ss}`;
+      }
+
+      function computeAccuracy(candles, predictions, nowMs = Date.now()) {
+        if (!Array.isArray(candles) || candles.length === 0 || !predictions || typeof predictions !== 'object') {
+          return { text: 'Accuracy: collecting…', count: 0, correct: 0 };
+        }
+        const comparable = [];
+        for (let i = candles.length - 1; i >= 0; i--) {
+          const c = candles[i];
+          if (!c || typeof c.t !== 'number' || c.t + 300000 > nowMs) continue;
+          const sec = Math.floor(c.t / 1000);
+          const p = predictions[sec];
+          if (p && Number.isFinite(p.up) && p.up !== 0.5) {
+            comparable.push({ c, p });
+            if (comparable.length >= 12) break;
+          }
+        }
+
+        if (comparable.length < 1) {
+          return { text: 'Accuracy: collecting…', count: 0, correct: 0 };
+        }
+
+        let correct = 0;
+        for (let i = 0; i < comparable.length; i++) {
+          const { c, p } = comparable[i];
+          const predUp = p.up > 0.5;
+          const actualUp = c.c >= c.o;
+          if (predUp === actualUp) {
+            correct++;
+          }
+        }
+
+        const total = comparable.length;
+        const pct = Math.round((correct / total) * 100);
+        return {
+          text: `Polymarket accuracy: ${correct}/${total} (${pct}%)`,
+          count: total,
+          correct
+        };
+      }
+
+      // Overlays: Past-prediction markers (B2) and Ghost prediction candle (B1)
+      function renderPastMarkersOverlay(ctx, geom) {
+        if (!geom.candles || geom.candles.length === 0) return;
+        const preds = (window.__btcData && typeof window.__btcData.predictions === 'function')
+          ? (window.__btcData.predictions() || {})
+          : {};
+
+        const now = Date.now();
+        const dotY = geom.plot.bottom - 6;
+        const dotRadius = 2.5;
+
+        ctx.save();
+        for (let i = 0; i < geom.visibleCount; i++) {
+          const candleIdx = geom.visibleStart + i;
+          if (candleIdx < 0 || candleIdx >= geom.candles.length) continue;
+          const candle = geom.candles[candleIdx];
+
+          if (candle.t + 300000 > now) continue;
+
+          const sec = Math.floor(candle.t / 1000);
+          const p = preds[sec];
+          if (!p || !Number.isFinite(p.up) || p.up === 0.5) continue;
+
+          const predUp = p.up > 0.5;
+          const actualUp = candle.c >= candle.o;
+          const isMatch = (predUp === actualUp);
+          const dotColor = isMatch ? accentGreen : accentRed;
+
+          const cx = geom.x(i);
+          ctx.fillStyle = dotColor;
+          ctx.beginPath();
+          ctx.arc(cx, dotY, dotRadius, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+      }
+
+      function renderGhostCandleOverlay(ctx, geom) {
+        const poly = (window.__btcData && window.__btcData.poly) || {};
+        if (!poly.next || !Number.isFinite(poly.next.up)) return;
+        if (!geom.candles || geom.candles.length === 0) return;
+
+        const { direction, confidence, normUp, normDown } = computeDirectionAndConfidence(poly.next.up, poly.next.down);
+
+        let dirColor = accentNeutral;
+        if (direction === 'up') dirColor = accentGreen;
+        else if (direction === 'down') dirColor = accentRed;
+
+        const ghostIdx = geom.visibleCount;
+        const gx = geom.x(ghostIdx);
+        const lastCandle = geom.candles[geom.candles.length - 1];
+        const openPrice = lastCandle.c;
+        const openY = geom.y(openPrice);
+
+        const plotHeight = Math.max(0, geom.plot.bottom - geom.plot.top);
+        const bodyHeightPx = Math.max(8, confidence * 0.22 * plotHeight);
+
+        let bodyTop, bodyBottom;
+        if (direction === 'up') {
+          bodyTop = openY - bodyHeightPx;
+          bodyBottom = openY;
+        } else if (direction === 'down') {
+          bodyTop = openY;
+          bodyBottom = openY + bodyHeightPx;
+        } else {
+          // Neutral: 8px tall centered on open
+          bodyTop = openY - 4;
+          bodyBottom = openY + 4;
+        }
+        const actualBodyH = bodyBottom - bodyTop;
+        const wickH = actualBodyH * 0.35;
+        const wickTop = bodyTop - wickH;
+        const wickBottom = bodyBottom + wickH;
+
+        const bodyW = geom.bodyWidth;
+        const bodyLeft = gx - bodyW / 2;
+
+        ctx.save();
+
+        // 1. Thin dotted connector line from last candle close to ghost open
+        const lastVisibleIdx = geom.visibleCount - 1;
+        if (lastVisibleIdx >= 0) {
+          const lastX = geom.x(lastVisibleIdx);
+          ctx.save();
+          ctx.strokeStyle = hexToAlpha(dirColor, 0.45);
+          ctx.lineWidth = 1;
+          ctx.setLineDash([2, 2]);
+          ctx.beginPath();
+          ctx.moveTo(lastX, openY);
+          ctx.lineTo(bodyLeft, openY);
+          ctx.stroke();
+          ctx.restore();
+        }
+
+        // 2. Ghost Wicks
+        ctx.save();
+        ctx.strokeStyle = dirColor;
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([3, 3]);
+        ctx.shadowColor = hexToAlpha(dirColor, 0.5);
+        ctx.shadowBlur = 10;
+        ctx.beginPath();
+        ctx.moveTo(gx, wickTop);
+        ctx.lineTo(gx, bodyTop);
+        ctx.moveTo(gx, bodyBottom);
+        ctx.lineTo(gx, wickBottom);
+        ctx.stroke();
+        ctx.restore();
+
+        // 3. Ghost Body (translucent fill, dashed outline, soft glow)
+        const fillAlpha = 0.18 + 0.32 * confidence;
+        ctx.save();
+        ctx.fillStyle = hexToAlpha(dirColor, fillAlpha);
+        ctx.strokeStyle = dirColor;
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([3, 3]);
+        ctx.shadowColor = hexToAlpha(dirColor, 0.5);
+        ctx.shadowBlur = 10;
+        const radius = Math.min(3, bodyW / 2, actualBodyH / 2);
+        ctx.beginPath();
+        drawRoundRect(ctx, bodyLeft, bodyTop, bodyW, actualBodyH, radius);
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+
+        // 4. Ghost Label
+        let labelText = '—';
+        if (direction === 'up') {
+          labelText = `▲ ${Math.round(normUp * 100)}%`;
+        } else if (direction === 'down') {
+          labelText = `▼ ${Math.round(normDown * 100)}%`;
+        }
+
+        let labelY = (direction === 'down') ? (wickBottom + 10) : (wickTop - 7);
+        // Clamp label inside plot
+        labelY = Math.max(geom.plot.top + 8, Math.min(geom.plot.bottom - 6, labelY));
+
+        ctx.save();
+        ctx.font = 'bold 11px -apple-system, "SF Pro Display", Inter, sans-serif';
+        ctx.fillStyle = dirColor;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        const metrics = ctx.measureText(labelText);
+        const halfTextW = metrics.width / 2;
+        const labelX = Math.max(geom.plot.left + halfTextW + 2, Math.min(geom.plot.right - halfTextW - 2, gx));
+        ctx.fillText(labelText, labelX, labelY);
+        ctx.restore();
+
+        ctx.restore();
+      }
+
+      // Register chart overlays
+      window.__btcChart.overlays.push(renderPastMarkersOverlay);
+      window.__btcChart.overlays.push(renderGhostCandleOverlay);
+
+      // Pill & Prediction Panel Management
+      function updatePolyPill() {
+        if (!polyPillEl) return;
+        const poly = (window.__btcData && window.__btcData.poly) || {};
+        const status = poly.status || 'loading';
+
+        polyPillEl.classList.remove('poly-pill--ok', 'poly-pill--warn', 'poly-pill--off');
+
+        if (status === 'ok') {
+          polyPillEl.classList.add('poly-pill--ok');
+          polyPillEl.innerHTML = '<span class="poly-pill-dot"></span><span>Polymarket live</span>';
+        } else if (status === 'no-market') {
+          polyPillEl.classList.add('poly-pill--warn');
+          polyPillEl.textContent = 'No market yet';
+        } else if (status === 'unavailable') {
+          polyPillEl.classList.add('poly-pill--off');
+          polyPillEl.textContent = 'Polymarket offline';
+        } else {
+          polyPillEl.textContent = 'Polymarket …';
+        }
+      }
+
+      function updatePredictionCountdown() {
+        if (!predCountdownEl) return;
+        const poly = (window.__btcData && window.__btcData.poly) || {};
+        const targetMs = (poly.next && typeof poly.next.startSec === 'number') ? poly.next.startSec * 1000 : NaN;
+        predCountdownEl.textContent = formatCountdown(targetMs);
+      }
+
+      let countdownInterval = null;
+      function startPredictionCountdownTimer() {
+        if (countdownInterval) clearInterval(countdownInterval);
+        countdownInterval = setInterval(() => {
+          if (document.hidden) return;
+          updatePredictionCountdown();
+        }, 1000);
+      }
+
+      let lastPanelSignature = '';
+
+      function updatePredictionPanel() {
+        if (!predictionPanelEl) return;
+        const poly = (window.__btcData && window.__btcData.poly) || {};
+        const candles = (window.__btcData && window.__btcData.candles) || [];
+        const preds = (window.__btcData && typeof window.__btcData.predictions === 'function')
+          ? window.__btcData.predictions()
+          : {};
+
+        const next = poly.next;
+        const acc = computeAccuracy(candles, preds);
+        const sig = `${poly.status}|${next ? next.startSec : ''}|${next ? next.up : ''}|${next ? next.down : ''}|${next ? next.volume : ''}|${acc.text}`;
+
+        if (sig !== lastPanelSignature) {
+          lastPanelSignature = sig;
+
+          // Row 2: Direction text & class
+          predDirectionEl.className = 'pred-direction';
+          if (!next || !Number.isFinite(next.up)) {
+            predDirectionEl.textContent = 'No prediction';
+            predDirectionEl.classList.add('pred-dir--none');
+            predBarUpEl.style.width = '50%';
+            predBarDownEl.style.width = '50%';
+            predLabelUpEl.textContent = 'Up --%';
+            predLabelDownEl.textContent = 'Down --%';
+          } else {
+            const { direction, normUp, normDown } = computeDirectionAndConfidence(next.up, next.down);
+            const upPct = Math.round(normUp * 100);
+            const downPct = Math.round(normDown * 100);
+
+            if (direction === 'up') {
+              predDirectionEl.textContent = `▲ Up ${upPct}%`;
+              predDirectionEl.classList.add('pred-dir--up');
+            } else if (direction === 'down') {
+              predDirectionEl.textContent = `▼ Down ${downPct}%`;
+              predDirectionEl.classList.add('pred-dir--down');
+            } else {
+              const neutralPct = Math.round(Math.max(normUp, normDown) * 100);
+              predDirectionEl.textContent = `● Neutral ${neutralPct}%`;
+              predDirectionEl.classList.add('pred-dir--neutral');
+            }
+
+            predBarUpEl.style.width = `${normUp * 100}%`;
+            predBarDownEl.style.width = `${normDown * 100}%`;
+            predLabelUpEl.textContent = `Up ${upPct}%`;
+            predLabelDownEl.textContent = `Down ${downPct}%`;
+          }
+
+          // Row 4: Meta row (Volume & Accuracy)
+          if (next && Number.isFinite(next.volume) && next.volume > 0) {
+            const volStr = formatVolume(next.volume);
+            predVolumeEl.textContent = volStr ? `Volume ${volStr}` : '';
+            predVolumeEl.style.display = volStr ? 'inline' : 'none';
+          } else {
+            predVolumeEl.textContent = '';
+            predVolumeEl.style.display = 'none';
+          }
+
+          predAccuracyEl.textContent = acc.text;
+        }
+
+        updatePolyPill();
+        updatePredictionCountdown();
+      }
+
+      function prefersReducedMotion() {
+        return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      }
+
+      function scheduleChartFrame() {
+        if (document.hidden) return;
+        if (chartRafId !== null) return;
+        chartRafId = requestAnimationFrame(renderChartFrame);
+      }
+
+      function markChartDirty() {
+        chartDirty = true;
+        scheduleChartFrame();
+      }
+
+      function resizeChartCanvas() {
+        if (!chartPanelEl || !chartCanvasEl || !chartCtx) return;
+        const w = chartPanelEl.clientWidth;
+        const h = chartPanelEl.clientHeight;
+        if (w <= 0 || h <= 0) return;
+
+        chartDpr = Math.min(window.devicePixelRatio || 1, 2);
+        chartPanelW = w;
+        chartPanelH = h;
+
+        chartCanvasEl.width = Math.round(w * chartDpr);
+        chartCanvasEl.height = Math.round(h * chartDpr);
+        chartCtx.setTransform(chartDpr, 0, 0, chartDpr, 0, 0);
+        markChartDirty();
+      }
+
+      const chartResizeObserver = new ResizeObserver(() => {
+        resizeChartCanvas();
+      });
+      if (chartPanelEl) {
+        chartResizeObserver.observe(chartPanelEl);
+      }
+
+      // Check candle window change to trigger slide animation
+      function checkCandleWindowChange() {
+        const currentCandles = (window.__btcData && window.__btcData.candles) || [];
+        if (currentCandles.length === 0) return;
+
+        const firstT = currentCandles[0].t;
+        const len = currentCandles.length;
+
+        if (prevCandlesLen > 0) {
+          if (len > prevCandlesLen || (len === prevCandlesLen && firstT !== prevFirstCandleT)) {
+            if (!prefersReducedMotion()) {
+              slideActive = true;
+              slideStartTime = performance.now();
+            }
+          }
+        }
+
+        prevCandlesLen = len;
+        prevFirstCandleT = firstT;
+      }
+
+      // Main Render Frame
+      function renderChartFrame(now) {
+        chartRafId = null;
+        if (document.hidden) return;
+        if (!chartCtx || chartPanelW <= 0 || chartPanelH <= 0) return;
+
+        const dt = Math.min(100, Math.max(1, now - lastChartFrameTime));
+        lastChartFrameTime = now;
+
+        const candles = (window.__btcData && window.__btcData.candles) || [];
+        const hasCandles = candles.length > 0;
+
+        // Manage chartEmpty state
+        if (hasCandles) {
+          if (chartEmptyEl && !chartEmptyEl.hidden) {
+            chartEmptyEl.hidden = true;
+          }
+          if (chartEmptyTimeout) {
+            clearTimeout(chartEmptyTimeout);
+            chartEmptyTimeout = null;
+          }
+        } else {
+          if (chartEmptyEl && chartEmptyEl.hidden) {
+            chartEmptyEl.hidden = false;
+          }
+        }
+
+        // Layout dimensions
+        const padLeft = 8;
+        const padTop = 8;
+        const gutterRight = 64;
+        const gutterBottom = 22;
+
+        const plotLeft = padLeft;
+        const plotTop = padTop;
+        const plotRight = chartPanelW - gutterRight;
+        const plotBottom = chartPanelH - gutterBottom;
+        const plotWidth = Math.max(0, plotRight - plotLeft);
+        const plotHeight = Math.max(0, plotBottom - plotTop);
+
+        // Visible candles (last N <= 72)
+        const N = Math.min(candles.length, 72);
+        const visibleStart = candles.length - N;
+        const visibleCandles = hasCandles ? candles.slice(visibleStart) : [];
+
+        // Compute Y Target Range from visible candles
+        let targetMin = 0;
+        let targetMax = 100;
+        if (hasCandles) {
+          let dMin = Infinity;
+          let dMax = -Infinity;
+          for (let i = 0; i < visibleCandles.length; i++) {
+            const c = visibleCandles[i];
+            if (Number.isFinite(c.l) && c.l < dMin) dMin = c.l;
+            if (Number.isFinite(c.h) && c.h > dMax) dMax = c.h;
+          }
+          if (!Number.isFinite(dMin) || !Number.isFinite(dMax)) {
+            dMin = 0;
+            dMax = 100;
+          }
+          if (dMax === dMin) {
+            const expand = dMax !== 0 ? Math.abs(dMax) * 0.005 : 1;
+            targetMin = dMax - expand;
+            targetMax = dMax + expand;
+          } else {
+            const span = dMax - dMin;
+            targetMin = dMin - span * 0.08;
+            targetMax = dMax + span * 0.08;
+          }
+        }
+
+        // Last candle target values
+        const lastCandle = hasCandles ? candles[candles.length - 1] : null;
+        const targetClose = lastCandle ? lastCandle.c : 0;
+        const targetHigh = lastCandle ? lastCandle.h : 0;
+        const targetLow = lastCandle ? lastCandle.l : 0;
+
+        // Initialize display values only when candles exist (snap on first data)
+        let isFirstData = false;
+        if (hasCandles) {
+          if (displayMin === null || !Number.isFinite(displayMin)) {
+            displayMin = targetMin;
+            displayMax = targetMax;
+            displayClose = targetClose;
+            displayHigh = targetHigh;
+            displayLow = targetLow;
+            isFirstData = true;
+          }
+        }
+
+        const reducedMotion = prefersReducedMotion();
+        let unsettled = false;
+
+        // Slot Width calculation (+1 empty slot on right)
+        const slotWidth = plotWidth / (N + 1);
+        const bodyWidth = Math.max(1.5, Math.min(14, slotWidth * 0.62));
+
+        // Slide Animation
+        if (slideActive) {
+          if (reducedMotion) {
+            slideActive = false;
+            slideOffset = 0;
+          } else {
+            const elapsed = now - slideStartTime;
+            if (elapsed >= 280) {
+              slideActive = false;
+              slideOffset = 0;
+            } else {
+              const progress = Math.min(1, elapsed / 280);
+              const easeOutCubic = 1 - Math.pow(1 - progress, 3);
+              slideOffset = slotWidth * (1 - easeOutCubic);
+              unsettled = true;
+            }
+          }
+        } else {
+          slideOffset = 0;
+        }
+
+        // Exponential smoothing for Y scale and last candle values
+        if (hasCandles) {
+          if (reducedMotion || isFirstData) {
+            displayMin = targetMin;
+            displayMax = targetMax;
+            displayClose = targetClose;
+            displayHigh = targetHigh;
+            displayLow = targetLow;
+          } else {
+            const factor = 1 - Math.exp(-dt / 90);
+            displayMin += (targetMin - displayMin) * factor;
+            displayMax += (targetMax - displayMax) * factor;
+            displayClose += (targetClose - displayClose) * factor;
+            displayHigh += (targetHigh - displayHigh) * factor;
+            displayLow += (targetLow - displayLow) * factor;
+
+            const epsilon = 0.01;
+            if (Math.abs(targetMin - displayMin) > epsilon) unsettled = true;
+            else displayMin = targetMin;
+
+            if (Math.abs(targetMax - displayMax) > epsilon) unsettled = true;
+            else displayMax = targetMax;
+
+            if (Math.abs(targetClose - displayClose) > epsilon) unsettled = true;
+            else displayClose = targetClose;
+
+            if (Math.abs(targetHigh - displayHigh) > epsilon) unsettled = true;
+            else displayHigh = targetHigh;
+
+            if (Math.abs(targetLow - displayLow) > epsilon) unsettled = true;
+            else displayLow = targetLow;
+          }
+        }
+
+        // Coordinate conversion helper
+        function yCoord(price) {
+          if (!Number.isFinite(price) || displayMax === displayMin) return plotBottom;
+          return plotBottom - ((price - displayMin) / (displayMax - displayMin)) * plotHeight;
+        }
+
+        function xCoord(i) {
+          return plotLeft + (i + 0.5) * slotWidth + slideOffset;
+        }
+
+        // Clear Canvas
+        chartCtx.clearRect(0, 0, chartPanelW, chartPanelH);
+
+        // Draw Horizontal Grid Lines & Y-Axis Labels
+        if (hasCandles && displayMax > displayMin) {
+          const { step, ticks } = getNiceTicks(displayMin, displayMax, 5);
+          chartCtx.save();
+          chartCtx.font = '11px -apple-system, "SF Pro Display", Inter, sans-serif';
+          chartCtx.textAlign = 'left';
+          chartCtx.textBaseline = 'middle';
+
+          for (let i = 0; i < ticks.length; i++) {
+            const tickVal = ticks[i];
+            const y = yCoord(tickVal);
+            if (y < plotTop - 2 || y > plotBottom + 2) continue;
+
+            const lineGrad = chartCtx.createLinearGradient(plotLeft, y, plotRight, y);
+            lineGrad.addColorStop(0, 'rgba(255, 255, 255, 0.00)');
+            lineGrad.addColorStop(0.25, 'rgba(255, 255, 255, 0.06)');
+            lineGrad.addColorStop(1, 'rgba(255, 255, 255, 0.06)');
+
+            chartCtx.strokeStyle = lineGrad;
+            chartCtx.lineWidth = 1;
+            chartCtx.beginPath();
+            const crispY = Math.round(y) - 0.5;
+            chartCtx.moveTo(plotLeft, crispY);
+            chartCtx.lineTo(plotRight, crispY);
+            chartCtx.stroke();
+
+            const labelStr = formatPriceTick(tickVal, step);
+            chartCtx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+            chartCtx.fillText(labelStr, plotRight + 6, y);
+          }
+          chartCtx.restore();
+        }
+
+        // Draw Candlesticks & Overlays (Clipped to Plot Area)
+        if (hasCandles) {
+          chartCtx.save();
+          chartCtx.beginPath();
+          chartCtx.rect(plotLeft, plotTop, plotWidth, plotHeight);
+          chartCtx.clip();
+
+          for (let i = 0; i < visibleCandles.length; i++) {
+            const candle = visibleCandles[i];
+            const isLast = (i === visibleCandles.length - 1);
+
+            const openVal = candle.o;
+            const highVal = isLast ? displayHigh : candle.h;
+            const lowVal = isLast ? displayLow : candle.l;
+            const closeVal = isLast ? displayClose : candle.c;
+
+            const cx = xCoord(i);
+            const openY = yCoord(openVal);
+            const closeY = yCoord(closeVal);
+            const highY = yCoord(highVal);
+            const lowY = yCoord(lowVal);
+
+            const isUp = closeVal >= openVal;
+            const candleColor = isUp ? accentGreen : accentRed;
+            const candleLighter = isUp ? greenLighter : redLighter;
+            const candleGlow = isUp ? greenGlow : redGlow;
+
+            // Wick (1.5px round caps)
+            chartCtx.strokeStyle = candleColor;
+            chartCtx.lineWidth = 1.5;
+            chartCtx.lineCap = 'round';
+            chartCtx.beginPath();
+            chartCtx.moveTo(cx, highY);
+            chartCtx.lineTo(cx, lowY);
+            chartCtx.stroke();
+
+            // Body (rounded rect, gradient, shadow glow, min 1.5px tall for doji)
+            let bodyH = Math.abs(closeY - openY);
+            if (bodyH < 1.5) bodyH = 1.5;
+            const bodyCenterY = (openY + closeY) / 2;
+            const bodyTop = bodyCenterY - bodyH / 2;
+            const bodyLeft = cx - bodyWidth / 2;
+            const radius = Math.min(3, bodyWidth / 2, bodyH / 2);
+
+            chartCtx.save();
+            chartCtx.shadowColor = candleGlow;
+            chartCtx.shadowBlur = 8;
+
+            const grad = chartCtx.createLinearGradient(0, bodyTop, 0, bodyTop + bodyH);
+            grad.addColorStop(0, candleLighter);
+            grad.addColorStop(1, candleColor);
+
+            chartCtx.fillStyle = grad;
+            chartCtx.beginPath();
+            drawRoundRect(chartCtx, bodyLeft, bodyTop, bodyWidth, bodyH, radius);
+            chartCtx.fill();
+            chartCtx.restore();
+          }
+
+          // Call overlay hooks inside plot clip
+          const geom = {
+            x(i) {
+              return xCoord(i);
+            },
+            y(price) {
+              return yCoord(price);
+            },
+            slotWidth,
+            bodyWidth,
+            plot: {
+              left: plotLeft,
+              top: plotTop,
+              right: plotRight,
+              bottom: plotBottom
+            },
+            visibleStart,
+            visibleCount: N,
+            candles
+          };
+
+          if (Array.isArray(window.__btcChart.overlays)) {
+            for (let idx = 0; idx < window.__btcChart.overlays.length; idx++) {
+              const hook = window.__btcChart.overlays[idx];
+              if (typeof hook === 'function') {
+                try {
+                  hook(chartCtx, geom);
+                } catch (e) {
+                  console.error('Chart overlay hook error:', e);
+                }
+              }
+            }
+          }
+
+          chartCtx.restore(); // End plot clip
+        }
+
+        // Draw Last Price Line & Tag
+        if (hasCandles && lastCandle && Number.isFinite(displayClose)) {
+          const lastY = yCoord(displayClose);
+          const isLastUp = displayClose >= lastCandle.o;
+          const lastColor = isLastUp ? accentGreen : accentRed;
+          const lastTagBg = isLastUp ? greenTagBg : redTagBg;
+
+          // Dashed line clipped to plot area
+          chartCtx.save();
+          chartCtx.beginPath();
+          chartCtx.rect(plotLeft, plotTop, plotWidth, plotHeight);
+          chartCtx.clip();
+          chartCtx.strokeStyle = lastColor;
+          chartCtx.lineWidth = 1;
+          chartCtx.setLineDash([4, 4]);
+          chartCtx.beginPath();
+          const crispLastY = Math.round(lastY) - 0.5;
+          chartCtx.moveTo(plotLeft, crispLastY);
+          chartCtx.lineTo(plotRight, crispLastY);
+          chartCtx.stroke();
+          chartCtx.restore();
+
+          // Last price glass tag in right gutter
+          const tagTop = Math.max(plotTop, Math.min(plotBottom - 18, lastY - 9));
+          const tagW = 56;
+          const tagH = 18;
+          const tagLeft = plotRight + 4;
+
+          chartCtx.save();
+          chartCtx.fillStyle = lastTagBg;
+          chartCtx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+          chartCtx.lineWidth = 1;
+          chartCtx.beginPath();
+          drawRoundRect(chartCtx, tagLeft, tagTop, tagW, tagH, 5);
+          chartCtx.fill();
+          chartCtx.stroke();
+
+          chartCtx.fillStyle = '#ffffff';
+          chartCtx.font = 'bold 10px -apple-system, "SF Pro Display", Inter, sans-serif';
+          chartCtx.textAlign = 'center';
+          chartCtx.textBaseline = 'middle';
+          const lastPriceText = formatPrice(displayClose);
+          chartCtx.fillText(lastPriceText, tagLeft + tagW / 2, tagTop + tagH / 2);
+          chartCtx.restore();
+        }
+
+        // Draw X-Axis Time Labels
+        if (hasCandles) {
+          chartCtx.save();
+          chartCtx.font = '10px -apple-system, "SF Pro Display", Inter, sans-serif';
+          chartCtx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+          chartCtx.textAlign = 'center';
+          chartCtx.textBaseline = 'middle';
+
+          const step = (visibleCandles.length > 24) ? 12 : Math.max(4, Math.floor(visibleCandles.length / 4));
+          let lastRight = -Infinity;
+
+          for (let i = 0; i < visibleCandles.length; i++) {
+            if ((visibleCandles.length - 1 - i) % step === 0) {
+              const c = visibleCandles[i];
+              const d = new Date(c.t);
+              const hh = String(d.getHours()).padStart(2, '0');
+              const mm = String(d.getMinutes()).padStart(2, '0');
+              const timeStr = `${hh}:${mm}`;
+
+              const cx = xCoord(i);
+              const labelWidth = 32;
+
+              if (cx - labelWidth / 2 >= plotLeft && cx + labelWidth / 2 <= plotRight) {
+                if (cx - labelWidth / 2 > lastRight + 12) {
+                  chartCtx.fillText(timeStr, cx, plotBottom + 12);
+                  lastRight = cx + labelWidth / 2;
+                }
+              }
+            }
+          }
+          chartCtx.restore();
+        }
+
+        // Draw Crosshair (Hairline + Cursor Price Tag)
+        if (isPointerActive && hasCandles) {
+          const nearestIdx = getNearestCandleIndex(pointerX, visibleCandles.length, slotWidth, plotLeft, slideOffset);
+          if (nearestIdx >= 0) {
+            const cx = xCoord(nearestIdx);
+
+            chartCtx.save();
+            chartCtx.save();
+            chartCtx.beginPath();
+            chartCtx.rect(plotLeft, plotTop, plotWidth, plotHeight);
+            chartCtx.clip();
+
+            chartCtx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+            chartCtx.lineWidth = 1;
+            chartCtx.setLineDash([2, 2]);
+            chartCtx.beginPath();
+            const crispCx = Math.round(cx) - 0.5;
+            chartCtx.moveTo(crispCx, plotTop);
+            chartCtx.lineTo(crispCx, plotBottom);
+
+            const crispPy = Math.round(pointerY) - 0.5;
+            chartCtx.moveTo(plotLeft, crispPy);
+            chartCtx.lineTo(plotRight, crispPy);
+            chartCtx.stroke();
+            chartCtx.restore();
+
+            // Cursor price tag in right gutter
+            const cursorPrice = displayMin + ((plotBottom - pointerY) / plotHeight) * (displayMax - displayMin);
+            const cursorPriceStr = formatPrice(cursorPrice);
+            const tagTop = Math.max(plotTop, Math.min(plotBottom - 18, pointerY - 9));
+            const tagW = 56;
+            const tagH = 18;
+            const tagLeft = plotRight + 4;
+
+            chartCtx.fillStyle = 'rgba(30, 41, 59, 0.9)';
+            chartCtx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+            chartCtx.lineWidth = 1;
+            chartCtx.setLineDash([]);
+            chartCtx.beginPath();
+            drawRoundRect(chartCtx, tagLeft, tagTop, tagW, tagH, 5);
+            chartCtx.fill();
+            chartCtx.stroke();
+
+            chartCtx.fillStyle = '#f1f5f9';
+            chartCtx.font = 'bold 10px -apple-system, "SF Pro Display", Inter, sans-serif';
+            chartCtx.textAlign = 'center';
+            chartCtx.textBaseline = 'middle';
+            chartCtx.fillText(cursorPriceStr, tagLeft + tagW / 2, tagTop + tagH / 2);
+
+            chartCtx.restore();
+          }
+        }
+
+        // Re-arm frame when unsettled
+        chartDirty = false;
+        if (unsettled) {
+          scheduleChartFrame();
+        }
+      }
+
+      // Update Tooltip DOM Element
+      function updateChartTooltip(px, py) {
+        if (!chartTooltipEl || !chartPanelEl) return;
+        const candles = (window.__btcData && window.__btcData.candles) || [];
+        if (candles.length === 0) return;
+
+        const N = Math.min(candles.length, 72);
+        const visibleCandles = candles.slice(candles.length - N);
+        const plotLeft = 8;
+        const plotRight = chartPanelW - 64;
+        const plotWidth = Math.max(0, plotRight - plotLeft);
+        const slotWidth = plotWidth / (N + 1);
+
+        const nearestIdx = getNearestCandleIndex(px, visibleCandles.length, slotWidth, plotLeft, slideOffset);
+        if (nearestIdx < 0) return;
+
+        const candle = visibleCandles[nearestIdx];
+        const d = new Date(candle.t);
+        const hh = String(d.getHours()).padStart(2, '0');
+        const mm = String(d.getMinutes()).padStart(2, '0');
+        const timeStr = `${hh}:${mm}`;
+
+        // Check Polymarket data
+        let polyLine = '';
+        const poly = window.__btcData && window.__btcData.poly;
+        const candleStartSec = Math.floor(candle.t / 1000);
+        let polyMarket = null;
+        if (poly) {
+          if (poly.history && typeof poly.history.get === 'function') {
+            polyMarket = poly.history.get(candleStartSec);
+          }
+          if (!polyMarket && poly.current && poly.current.startSec === candleStartSec) {
+            polyMarket = poly.current;
+          }
+        }
+
+        if (polyMarket) {
+          if (polyMarket.resolved && polyMarket.outcome) {
+            polyLine = `<div class="chart-tooltip-poly" style="color:#a5b4fc">Result: ${polyMarket.outcome}</div>`;
+          } else if (Number.isFinite(polyMarket.up)) {
+            const pct = Math.round(polyMarket.up * 100);
+            polyLine = `<div class="chart-tooltip-poly">Polymarket: Up ${pct}%</div>`;
+          }
+        }
+
+        chartTooltipEl.innerHTML = `
+          <div class="chart-tooltip-time">${timeStr}</div>
+          <div class="chart-tooltip-row"><span>O: ${formatPrice(candle.o)}</span><span>H: ${formatPrice(candle.h)}</span></div>
+          <div class="chart-tooltip-row"><span>L: ${formatPrice(candle.l)}</span><span>C: ${formatPrice(candle.c)}</span></div>
+          ${polyLine}
+        `;
+
+        chartTooltipEl.removeAttribute('hidden');
+
+        // Position tooltip inside panel bounds, flipped to the left near the right edge
+        const cx = plotLeft + (nearestIdx + 0.5) * slotWidth + slideOffset;
+        const tipW = chartTooltipEl.offsetWidth || 130;
+        const tipH = chartTooltipEl.offsetHeight || 64;
+        const panelW = chartPanelW;
+        const panelH = chartPanelH;
+
+        let tipX = cx + 12;
+        if (tipX + tipW > panelW - 8) {
+          tipX = cx - tipW - 12;
+        }
+        tipX = Math.max(8, Math.min(panelW - tipW - 8, tipX));
+
+        let tipY = py - tipH / 2;
+        tipY = Math.max(8, Math.min(panelH - tipH - 8, tipY));
+
+        chartTooltipEl.style.left = `${Math.round(tipX)}px`;
+        chartTooltipEl.style.top = `${Math.round(tipY)}px`;
+      }
+
+      function handlePointerMove(e) {
+        if (touchTimeoutId) {
+          clearTimeout(touchTimeoutId);
+          touchTimeoutId = null;
+        }
+        if (!chartCanvasEl) return;
+        const rect = chartCanvasEl.getBoundingClientRect();
+        const px = e.clientX - rect.left;
+        const py = e.clientY - rect.top;
+
+        const plotLeft = 8;
+        const plotRight = chartPanelW - 64;
+        const plotTop = 8;
+        const plotBottom = chartPanelH - 22;
+
+        const candles = (window.__btcData && window.__btcData.candles) || [];
+        if (px >= plotLeft && px <= plotRight && py >= plotTop && py <= plotBottom && candles.length > 0) {
+          isPointerActive = true;
+          pointerX = px;
+          pointerY = py;
+          updateChartTooltip(px, py);
+          markChartDirty();
+        } else {
+          hideChartPointer();
+        }
+      }
+
+      function handlePointerDown(e) {
+        if (touchTimeoutId) {
+          clearTimeout(touchTimeoutId);
+          touchTimeoutId = null;
+        }
+        handlePointerMove(e);
+      }
+
+      function handlePointerUp(e) {
+        if (e.pointerType === 'touch') {
+          if (touchTimeoutId) clearTimeout(touchTimeoutId);
+          touchTimeoutId = setTimeout(() => {
+            hideChartPointer();
+            touchTimeoutId = null;
+          }, 1200);
+        }
+      }
+
+      function hideChartPointer() {
+        if (touchTimeoutId) {
+          clearTimeout(touchTimeoutId);
+          touchTimeoutId = null;
+        }
+        if (!isPointerActive) return;
+        isPointerActive = false;
+        if (chartTooltipEl) {
+          chartTooltipEl.setAttribute('hidden', '');
+        }
+        markChartDirty();
+      }
+
+      if (chartCanvasEl) {
+        chartCanvasEl.addEventListener('pointermove', handlePointerMove);
+        chartCanvasEl.addEventListener('pointerdown', handlePointerDown);
+        chartCanvasEl.addEventListener('pointerup', handlePointerUp);
+        chartCanvasEl.addEventListener('pointerleave', (e) => {
+          if (e.pointerType === 'touch') return;
+          hideChartPointer();
+        });
+        chartCanvasEl.addEventListener('pointercancel', hideChartPointer);
+      }
+
+      // Event listener for data update
+      document.addEventListener('btc:data', () => {
+        checkCandleWindowChange();
+        if (isPointerActive) {
+          updateChartTooltip(pointerX, pointerY);
+        }
+        updatePredictionPanel();
+        markChartDirty();
+      });
+
+      // Visibility change listener
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) {
+          lastChartFrameTime = performance.now();
+          updatePredictionCountdown();
+          updatePredictionPanel();
+          markChartDirty();
+        }
+      });
+
+      // Initial layout setup
+      resizeChartCanvas();
+
+      // ==========================================
+      // 3D Tilt Effect on Mouse Move
+      // ==========================================
+      const card = document.querySelector('.card');
+      const MAX_ROTATION = 6; // Max rotation ±6 degrees
+
+      let targetRotX = 0;
+      let targetRotY = 0;
+      let rafId = null;
+      let isHovering = false;
+      let isTouchDevice = false;
+      let cardRect = null;
+
+      // Detect touch-only devices to disable tilt
+      if (
+        (window.matchMedia && window.matchMedia('(hover: none) and (pointer: coarse)').matches) ||
+        ('ontouchstart' in window && !window.matchMedia('(hover: hover)').matches)
+      ) {
+        isTouchDevice = true;
+      }
+
+      function detectTouch() {
+        isTouchDevice = true;
+        resetTilt();
+      }
+
+      window.addEventListener('touchstart', detectTouch, { passive: true });
+
+      function updateCardRect() {
+        if (card) {
+          cardRect = card.getBoundingClientRect();
+        }
+      }
+
+      function onMouseMove(e) {
+        if (isTouchDevice) return;
+        if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+        // Disable tilt while over chart or prediction panel so canvas hit-testing is never distorted
+        if (e.target && e.target.closest && (e.target.closest('.chart-panel') || e.target.closest('.pred-panel') || e.target.closest('.prediction-panel'))) {
+          resetTilt();
+          return;
+        }
+
+        if (!cardRect) {
+          updateCardRect();
+        }
+        if (!cardRect || !card) return;
+
+        // Use untransformed layout dimensions to prevent edge jitter
+        const cardWidth = card.offsetWidth || cardRect.width;
+        const cardHeight = card.offsetHeight || cardRect.height;
+        const halfWidth = cardWidth / 2;
+        const halfHeight = cardHeight / 2;
+
+        const centerX = cardRect.left + cardRect.width / 2;
+        const centerY = cardRect.top + cardRect.height / 2;
+
+        const deltaX = e.clientX - centerX;
+        const deltaY = e.clientY - centerY;
+
+        // Check if cursor is over the card
+        const isOverCard = Math.abs(deltaX) <= halfWidth && Math.abs(deltaY) <= halfHeight;
+
+        if (isOverCard) {
+          isHovering = true;
+          // Normalized from -1 to 1 relative to card center
+          const normX = Math.max(-1, Math.min(1, deltaX / halfWidth));
+          const normY = Math.max(-1, Math.min(1, deltaY / halfHeight));
+
+          // Calculate rotation: 0 at center, ±15deg at edges
+          targetRotX = -normY * MAX_ROTATION;
+          targetRotY = normX * MAX_ROTATION;
+
+          scheduleTiltUpdate();
+        } else {
+          if (isHovering) {
+            resetTilt();
+          }
+        }
+      }
+
+      function resetTilt() {
+        if (!isHovering && targetRotX === 0 && targetRotY === 0) return;
+        isHovering = false;
+        targetRotX = 0;
+        targetRotY = 0;
+        scheduleTiltUpdate();
+      }
+
+      function scheduleTiltUpdate() {
+        if (rafId !== null) return;
+        rafId = requestAnimationFrame(applyTilt);
+      }
+
+      function applyTilt() {
+        rafId = null;
+        if (!card) return;
+
+        const rotXStr = targetRotX === 0 ? '0deg' : `${targetRotX.toFixed(2)}deg`;
+        const rotYStr = targetRotY === 0 ? '0deg' : `${targetRotY.toFixed(2)}deg`;
+
+        // Apply via CSS variables and inline transform for full compatibility & GPU acceleration
+        card.style.setProperty('--rotX', rotXStr);
+        card.style.setProperty('--rotY', rotYStr);
+        card.style.transform = `perspective(1200px) rotateX(${rotXStr}) rotateY(${rotYStr})`;
+      }
+
+      // Event listeners for tracking and resetting
+      document.addEventListener('mousemove', onMouseMove);
+      if (card) {
+        card.addEventListener('mouseenter', updateCardRect);
+        card.addEventListener('mouseleave', resetTilt);
+        card.addEventListener('animationend', updateCardRect);
+      }
+      document.addEventListener('mouseleave', resetTilt);
+      window.addEventListener('blur', resetTilt);
+      window.addEventListener('resize', updateCardRect);
+      window.addEventListener('scroll', updateCardRect, { passive: true });
+
+      // Initial rect cache
+      updateCardRect();
+
       // Initial Fetch & Start Timers
       fetchPrice();
       startTimers();
+      fetchKlines();
+      refreshPoly();
+      startPolyTimer();
+      updatePolyPill();
+      updatePredictionPanel();
+      startPredictionCountdownTimer();
+
+      // Tab visibility listener
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) {
+          refreshPoly();
+          if (!isFetching) {
+            fetchPrice();
+          }
+        }
+      });
     })();
   </script>
 </body>
